@@ -152,7 +152,7 @@ void plugin_ingest(PLUGIN_HANDLE *handle,
 				{
 					found = true;
 					// We have a datapoint that defines the validity of another data point
-					if (value.toInt() == 0)
+					if (value.toDouble() < 0.1)
 					{
 						dpName = name.substr(0, fpos);
 					}
