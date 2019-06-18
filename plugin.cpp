@@ -28,6 +28,17 @@
 #define QUOTE(...) TO_STRING(__VA_ARGS__)
 
 #define FILTER_NAME "FlirValidity"
+
+#define LABELS QUOTE({				\
+		"areas" : [ "1", "2", "3", "4", \
+			"5", "6", "7", "8", "9",\
+			"10", "11", "12", "13", \
+			"14", "15", "16", "17", \
+			"18", "19", "20" ]	\
+			})
+#if 0
+#endif
+
 const char *defaultConfig = QUOTE({
 		"plugin" : {
 			"description" : "Flir Validity filter plugin",
@@ -35,13 +46,21 @@ const char *defaultConfig = QUOTE({
 			"default" : FILTER_NAME,
 			"readonly": "true"
 		       	},
+		"labels" : {
+			"description" : "Labels to use for the various areas",
+			"type" : "JSON",
+			"displayName": "Area Labels",
+			"default" : LABELS,
+			"order" : "1"
+		       	},
 		"enable": {
 			"description": "A switch that can be used to enable or disable execution of the validity filter.",
 			"type": "boolean",
 			"displayName": "Enabled",
-		"default": "true"
+			"default": "true",
+			"order" : "2"
 			}
-			});
+		});
 
 using namespace std;
 
@@ -157,6 +176,7 @@ void plugin_ingest(PLUGIN_HANDLE *handle,
 						dpName = name.substr(0, fpos);
 					}
 					// Remove the *Valid datapoint
+					delete *it;
 					dataPoints.erase(it);
 				}
 			}
@@ -168,8 +188,36 @@ void plugin_ingest(PLUGIN_HANDLE *handle,
 				{
 					if (dpName.compare((*it)->getName()) == 0)
 					{
+						delete *it;
 						dataPoints.erase(it);
 						break;
+					}
+				}
+			}
+		} while (found);
+
+		// Remove unused spot and delta values
+		do {
+			found = false;
+			for (vector<Datapoint *>::iterator it = dataPoints.begin(); it != dataPoints.end() && found == false; ++it)
+			{
+				DatapointValue& value = (*it)->getData();
+				string name = (*it)->getName();
+				size_t fpos = name.find("delta");
+				if (fpos != string::npos && value.toDouble() < 0.1 && value.toDouble() > -0.1)
+				{
+					delete *it;
+					dataPoints.erase(it);
+					found = true;
+				}
+				else
+				{
+					size_t fpos = name.find("spot");
+					if (fpos != string::npos && value.toDouble() < 0.1 && value.toDouble() > -0.1)
+					{
+						delete *it;
+						dataPoints.erase(it);
+						found = true;
 					}
 				}
 			}
