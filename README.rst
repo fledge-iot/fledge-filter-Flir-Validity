@@ -3,8 +3,15 @@ FogLAMP filter for Flir Modbus data to remove invalid readings
 ==============================================================
 
 This filter processes the modbus data from a Flir Thermal Imaging camera
-and removes the datapoints for whcih there is not a matchign xxxValid data
+and removes the datapoints for whcih there is not a matching xxxValid data
 point with a non-zero value. It also removes the xxxValid data points.
+
+Any deltaXX entries with a value of zero are also removed as are any spotXX
+entries. The spot and delta values do not have a corresponding xxxValid 
+entry, so hence a zero value is used as a trigger to remove them.
+
+A mechanism is also available for labelling the areas. This is done by
+configuring an array of labels with the names to give the areas.
 
 Build
 -----

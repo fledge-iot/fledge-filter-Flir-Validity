@@ -28,6 +28,17 @@
 #define QUOTE(...) TO_STRING(__VA_ARGS__)
 
 #define FILTER_NAME "FlirValidity"
+
+#define LABELS QUOTE({				\
+		"areas" : [ "1", "2", "3", "4", \
+			"5", "6", "7", "8", "9",\
+			"10", "11", "12", "13", \
+			"14", "15", "16", "17", \
+			"18", "19", "20" ]	\
+			})
+#if 0
+#endif
+
 const char *defaultConfig = QUOTE({
 		"plugin" : {
 			"description" : "Flir Validity filter plugin",
@@ -35,13 +46,21 @@ const char *defaultConfig = QUOTE({
 			"default" : FILTER_NAME,
 			"readonly": "true"
 		       	},
+		"labels" : {
+			"description" : "Labels to use for the various areas",
+			"type" : "JSON",
+			"displayName": "Area Labels",
+			"default" : LABELS,
+			"order" : "1"
+		       	},
 		"enable": {
 			"description": "A switch that can be used to enable or disable execution of the validity filter.",
 			"type": "boolean",
 			"displayName": "Enabled",
-		"default": "true"
+			"default": "true",
+			"order" : "2"
 			}
-			});
+		});
 
 using namespace std;
 
@@ -64,8 +83,9 @@ static PLUGIN_INFORMATION info = {
 
 typedef struct
 {
-	FogLampFilter	*handle;
-	std::string	configCatName;
+	FogLampFilter			*handle;
+	std::string			configCatName;
+	std::vector<std::string>	nameMap;
 } FILTER_INFO;
 
 /**
@@ -103,6 +123,22 @@ PLUGIN_HANDLE plugin_init(ConfigCategory* config,
 					output);
 	info->configCatName = config->getName();
 
+	if (config->itemExists("labels"))
+	{
+		string labels = config->getValue("labels");
+		rapidjson::Document doc;
+		doc.Parse(labels.c_str());
+		if (doc.HasMember("areas") && doc["areas"].IsArray())
+		{
+			const rapidjson::Value& values = doc["areas"];
+			for (rapidjson::Value::ConstValueIterator itr = values.Begin();
+						itr != values.End(); ++itr)
+			{
+				info->nameMap.push_back(itr->GetString());
+			}
+		}
+	}
+
 	return (PLUGIN_HANDLE)info;
 }
 
@@ -115,8 +151,8 @@ PLUGIN_HANDLE plugin_init(ConfigCategory* config,
 void plugin_ingest(PLUGIN_HANDLE *handle,
 		   READINGSET *readingSet)
 {
-	FILTER_INFO *info = (FILTER_INFO *) handle;
-	FogLampFilter* filter = info->handle;
+	FILTER_INFO *info = (FILTER_INFO *)handle;
+	FogLampFilter *filter = info->handle;
 	
 	if (!filter->isEnabled())
 	{
@@ -157,6 +193,7 @@ void plugin_ingest(PLUGIN_HANDLE *handle,
 						dpName = name.substr(0, fpos);
 					}
 					// Remove the *Valid datapoint
+					delete *it;
 					dataPoints.erase(it);
 				}
 			}
@@ -168,12 +205,88 @@ void plugin_ingest(PLUGIN_HANDLE *handle,
 				{
 					if (dpName.compare((*it)->getName()) == 0)
 					{
+						delete *it;
 						dataPoints.erase(it);
 						break;
 					}
 				}
 			}
 		} while (found);
+
+		// Remove unused spot and delta values
+		do {
+			found = false;
+			for (vector<Datapoint *>::iterator it = dataPoints.begin(); it != dataPoints.end() && found == false; ++it)
+			{
+				DatapointValue& value = (*it)->getData();
+				string name = (*it)->getName();
+				size_t fpos = name.find("delta");
+				if (fpos != string::npos && value.toDouble() < 0.1 && value.toDouble() > -0.1)
+				{
+					delete *it;
+					dataPoints.erase(it);
+					found = true;
+				}
+				else
+				{
+					size_t fpos = name.find("spot");
+					if (fpos != string::npos && value.toDouble() < 0.1 && value.toDouble() > -0.1)
+					{
+						delete *it;
+						dataPoints.erase(it);
+						found = true;
+					}
+				}
+			}
+		} while (found);
+
+		// Remove unused bad average values
+		do {
+			found = false;
+			for (vector<Datapoint *>::iterator it = dataPoints.begin(); it != dataPoints.end() && found == false; ++it)
+			{
+				DatapointValue& value = (*it)->getData();
+				string name = (*it)->getName();
+				size_t fpos = name.find("average");
+				if (fpos != string::npos && value.toDouble() < 0.1 && value.toDouble() > -0.1)
+				{
+					delete *it;
+					dataPoints.erase(it);
+					found = true;
+				}
+			}
+		} while (found);
+
+		// Now handle any renaming of the datapoints
+		vector<string> &names = info->nameMap;
+		for (vector<Datapoint *>::iterator it = dataPoints.begin(); it != dataPoints.end(); ++it)
+		{
+			string name = (*it)->getName();
+			if (name.substr(0, 3).compare("min") == 0)
+			{
+				int num = atoi(name.substr(3).c_str());
+				if (num > 0 && num <= names.size())
+				{
+					(*it)->setName("min" + names[num-1]);
+				}
+			}
+			else if (name.substr(0, 3).compare("max") == 0)
+			{
+				int num = atoi(name.substr(3).c_str());
+				if (num > 0 && num <= names.size())
+				{
+					(*it)->setName("max" + names[num-1]);
+				}
+			}
+			else if (name.substr(0, 7).compare("average") == 0)
+			{
+				int num = atoi(name.substr(7).c_str());
+				if (num > 0 && num <= names.size())
+				{
+					(*it)->setName("average" + names[num-1]);
+				}
+			}
+		}
 	}
 
 	// Pass the altered reading set onwards
@@ -191,6 +304,23 @@ void plugin_reconfigure(PLUGIN_HANDLE *handle, const std::string& newConfig)
 	FILTER_INFO *info = (FILTER_INFO *)handle;
 	FogLampFilter* data = info->handle;
 	data->setConfig(newConfig);
+	ConfigCategory  config("new", newConfig);
+	if (config.itemExists("labels"))
+	{
+		info->nameMap.clear();
+		string labels = config.getValue("labels");
+		rapidjson::Document doc;
+		doc.Parse(labels.c_str());
+		if (doc.HasMember("areas") && doc["areas"].IsArray())
+		{
+			const rapidjson::Value& values = doc["areas"];
+			for (rapidjson::Value::ConstValueIterator itr = values.Begin();
+						itr != values.End(); ++itr)
+			{
+				info->nameMap.push_back(itr->GetString());
+			}
+		}
+	}
 }
 
 /**
