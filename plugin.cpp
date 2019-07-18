@@ -22,11 +22,6 @@
 #include <regex>
 #include <version.h>
 
-#define TO_STRING(...) DEFER(TO_STRING_)(__VA_ARGS__)
-#define DEFER(x) x
-#define TO_STRING_(...) #__VA_ARGS__
-#define QUOTE(...) TO_STRING(__VA_ARGS__)
-
 #define FILTER_NAME "FlirValidity"
 
 #define LABELS QUOTE({				\
