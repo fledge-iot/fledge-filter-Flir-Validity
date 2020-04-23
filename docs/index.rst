@@ -4,7 +4,7 @@
 .. Links
 .. |FlirAX8| raw:: html
 
-   <a href=<../fledge-south-FlirAX8/index.html">Flir AX8</a>
+   <a href="../fledge-south-FlirAX8/index.html">Flir AX8</a>
 
 Flir Validity Filter
 ====================
