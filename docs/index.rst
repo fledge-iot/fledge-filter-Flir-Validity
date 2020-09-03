@@ -32,7 +32,7 @@ If we assume we are monitoring a lathe with the camera and taking the temperatur
             "5",
             "6",
             "7",
-            "8',
+            "8",
             "9",
             "10"
           ]
