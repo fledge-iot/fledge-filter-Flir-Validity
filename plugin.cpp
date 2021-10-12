@@ -129,7 +129,10 @@ PLUGIN_HANDLE plugin_init(ConfigCategory* config,
 			for (rapidjson::Value::ConstValueIterator itr = values.Begin();
 						itr != values.End(); ++itr)
 			{
-				info->nameMap.push_back(itr->GetString());
+				if (itr->IsString())
+					info->nameMap.push_back(itr->GetString());
+				else
+					Logger::getLogger()->error("Configuration error: labels should be strings");
 			}
 		}
 	}
@@ -312,7 +315,10 @@ void plugin_reconfigure(PLUGIN_HANDLE *handle, const std::string& newConfig)
 			for (rapidjson::Value::ConstValueIterator itr = values.Begin();
 						itr != values.End(); ++itr)
 			{
-				info->nameMap.push_back(itr->GetString());
+				if (itr->IsString())
+					info->nameMap.push_back(itr->GetString());
+				else
+					Logger::getLogger()->error("Configuration error, labels shuld be strings");
 			}
 		}
 	}
