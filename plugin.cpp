@@ -34,7 +34,7 @@
 #if 0
 #endif
 
-const char *defaultConfig = QUOTE({
+static const char *defaultConfig = QUOTE({
 		"plugin" : {
 			"description" : "Flir Validity filter plugin",
 			"type" : "string",
